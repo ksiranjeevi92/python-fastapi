@@ -1,0 +1,53 @@
+from fastapi import FastAPI, Query, Path,HTTPException, status, Body
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict
+from database import cars
+
+class Car(BaseModel):
+    make:str
+    model: str
+    year: int = Field(...,ge=1970,lt=2026)
+    price: float
+    engine: Optional[str] = "V4"
+    autonomous: bool
+    sold: List[str]
+
+app = FastAPI()
+
+@app.get("/")
+def root():
+    return {"Welcome to": "Your first API in FastAPI"}
+
+@app.get("/cars", response_model=List[Dict[int,Car]])
+def get_cars(number: Optional[int] = Query(10, ge=1, le=100)):
+    # response = []
+    # for id , car in list(cars.items())[:int(number)]:
+    #     to_add = {}
+    #     to_add[id] = car
+    #     response.append(to_add)
+    # return response
+
+    ## List comprehension apporoach 
+    return [{id: car} for id , car in list(cars.items()) ] [:int(number)]
+
+@app.get("/cars/{id}", response_model=Car)
+def get_car_by_id(id: int=Path(...,ge=0,lt=1000)):
+    car = cars.get(id)
+    if not car:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Could not find car by ID")
+    return car
+
+
+@app.post("/cars", status_code=status.HTTP_201_CREATED)
+def add_cars(body_cars: List[Car] = Body(...), min_id:int = Body(0)):
+    if not body_cars:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST)
+    current_max_id = max(cars) if cars else 0
+    next_id = max(current_max_id, min_id) + 1
+
+    for car in body_cars:
+        cars[next_id] = car
+        next_id += 1
+    return {"mesage": f'Sucessfully added {len(body_cars)} cars'}
+
+
